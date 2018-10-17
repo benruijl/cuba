@@ -9,7 +9,7 @@ with user data (this can be of any type):
 
 ```rust
 extern crate cuba;
-use cuba::CubaIntegrator;
+use cuba::{CubaIntegrator, CubaVerbosity};
 
 #[derive(Debug)]
 struct TestUserData {
@@ -28,7 +28,12 @@ fn main() {
     let mut ci = CubaIntegrator::new(test_integrand);
     ci.set_mineval(10).set_maxeval(10000);
 
-    let r = ci.vegas(2, 2, TestUserData { f1: 5., f2: 7. });
+    let r = ci.vegas(
+        2,
+        2,
+        CubaVerbosity::Progress,
+        TestUserData { f1: 5., f2: 7. },
+    );
     println!("{:#?}", r);
 }
 ```

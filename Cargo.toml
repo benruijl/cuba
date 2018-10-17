@@ -1,6 +1,6 @@
 [package]
 name = "cuba"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Rust wrapper for the C Cuba integration library"
 repository = "https://github.com/benruijl/cuba"
 readme = "README.md"

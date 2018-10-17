@@ -1,7 +1,63 @@
+//! Rust binding for the Cuba integrator.
+//!
+//! # Usage
+//! Create a `CubaIntegrator` and supply it with a function of the form
+//!
+//! ```
+//! fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut T) -> i32 {
+//! }
+//! ```
+//! where `T` can be any type. If you don't want to provide user data,
+//! simply make `T` a `usize` and provide any number.
+//!
+//! # Example
+//!
+//! ```
+//! extern crate cuba;
+//! use cuba::{CubaIntegrator, CubaVerbosity};
+//!
+//! #[derive(Debug)]
+//! struct TestUserData {
+//!     f1: f64,
+//!     f2: f64,
+//! }
+//!
+//! #[inline(always)]
+//! fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut TestUserData) -> i32 {
+//!     f[0] = (x[0] * x[1]).sin() * user_data.f1;
+//!     f[1] = (x[1] * x[1]).cos() * user_data.f2;
+//!     0
+//! }
+//!
+//! fn main() {
+//!     let mut ci = CubaIntegrator::new(test_integrand);
+//!     ci.set_mineval(10).set_maxeval(10000);
+//!
+//!     let r = ci.vegas(
+//!         2,
+//!         2,
+//!         CubaVerbosity::Progress,
+//!         TestUserData { f1: 5., f2: 7. },
+//!     );
+//!     println!("{:#?}", r);
+//! }
+//! ```
 extern crate libc;
 use libc::{c_char, c_double, c_int, c_void};
 use std::ptr;
 use std::slice;
+
+/// Logging level.
+///
+/// `Silent` does not print any output, `Progress` prints 'reasonable' information on the
+/// progress of the integration, `Input` also echoes the input parameters,
+/// and `Subregions` further prints the subregion results.
+pub enum CubaVerbosity {
+    Silent = 0,
+    Progress = 1,
+    Input = 2,
+    Subregions = 3,
+}
 
 macro_rules! gen_setter {
     ($setr:ident, $r:ident, $t: ty) => {
@@ -48,7 +104,15 @@ type IntegrandC = extern "C" fn(
     userdata: *mut c_void,
 ) -> c_int;
 
-type Integrand<T> = fn(x: &[f64], f: &mut [f64], user_data: &mut T) -> i32;
+/// Integrand evaluation function.
+///
+/// The dimensions of random input variables `x` and output `f`
+/// are provided to the integration routine as dimension and components respectively.
+/// `T` can be any type. If you don't want to provide user data,
+/// simply make `T` a `usize` and provide any number.
+///
+/// The return value is ignored, unless it is -999. Then the integration will be aborted.
+pub type Integrand<T> = fn(x: &[f64], f: &mut [f64], user_data: &mut T) -> i32;
 
 #[repr(C)]
 struct CubaUserData<T> {
@@ -56,6 +120,7 @@ struct CubaUserData<T> {
     user_data: T,
 }
 
+/// The result of an integration with Cuba.
 #[derive(Debug)]
 pub struct CubaResult {
     pub neval: i32,
@@ -65,6 +130,7 @@ pub struct CubaResult {
     pub prob: Vec<f64>,
 }
 
+/// A Cuba integrator. It should be created with an integrand function.
 pub struct CubaIntegrator<T> {
     integrand: Integrand<T>,
     mineval: i32,
@@ -78,6 +144,8 @@ pub struct CubaIntegrator<T> {
 }
 
 impl<T> CubaIntegrator<T> {
+    /// Create a new Cuba integrator. Use the `set_` functions
+    /// to set integration parameters.
     pub fn new(integrand: Integrand<T>) -> CubaIntegrator<T> {
         CubaIntegrator {
             integrand,
@@ -121,7 +189,19 @@ impl<T> CubaIntegrator<T> {
         }
     }
 
-    pub fn vegas(&mut self, ndim: usize, ncomp: usize, user_data: T) -> CubaResult {
+    /// Integrate using the Vegas integrator.
+    ///
+    /// * `ndim` - dimension of the input
+    /// * `ncomp` - dimension (components) of the output
+    /// * `verbosity` - Verbosity level
+    /// * `user_data` - User data used by the integrand function
+    pub fn vegas(
+        &mut self,
+        ndim: usize,
+        ncomp: usize,
+        verbosity: CubaVerbosity,
+        user_data: T,
+    ) -> CubaResult {
         let mut out = CubaResult {
             neval: 0,
             fail: 0,
@@ -147,7 +227,7 @@ impl<T> CubaIntegrator<T> {
                 1,                                      // nvec
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
-                0,                                      // flags
+                verbosity as c_int,                     // flags
                 self.seed,                              // seed
                 self.mineval,                           // mineval
                 self.maxeval,                           // maxeval
