@@ -1,0 +1,16 @@
+[package]
+name = "cuba"
+version = "0.1.0"
+description = "A Rust wrapper for the C Cuba integration library"
+repository = "https://github.com/benruijl/cuba"
+readme = "README.md"
+license = "MIT"
+keywords = ["mathematics", "science", "integration"]
+categories = ["science", "api-bindings"]
+authors = ["Ben Ruijl <benruyl@gmail.com>"]
+
+[profile.release]
+codegen-units = 1
+
+[dependencies]
+libc = "0.2.0"
