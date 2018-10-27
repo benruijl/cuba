@@ -8,7 +8,7 @@ struct TestUserData {
 }
 
 #[inline(always)]
-fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut TestUserData) -> i32 {
+fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut TestUserData, _nvec: usize, _core: i32) -> i32 {
     f[0] = (x[0] * x[1]).sin() * user_data.f1;
     f[1] = (x[1] * x[1]).cos() * user_data.f2;
     0

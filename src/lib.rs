@@ -102,6 +102,8 @@ type IntegrandC = extern "C" fn(
     ncomp: *const c_int,
     f: *mut c_double,
     userdata: *mut c_void,
+    nvec: *const c_int,
+    core: *const c_int,
 ) -> c_int;
 
 /// Integrand evaluation function.
@@ -111,8 +113,12 @@ type IntegrandC = extern "C" fn(
 /// `T` can be any type. If you don't want to provide user data,
 /// simply make `T` a `usize` and provide any number.
 ///
+/// `core` specifies the current core that is being used. This can be used to write to
+/// the user data in a thread-safe way.
+///
 /// The return value is ignored, unless it is -999. Then the integration will be aborted.
-pub type Integrand<T> = fn(x: &[f64], f: &mut [f64], user_data: &mut T) -> i32;
+pub type Integrand<T> =
+    fn(x: &[f64], f: &mut [f64], user_data: &mut T, nvec: usize, core: i32) -> i32;
 
 #[repr(C)]
 struct CubaUserData<T> {
@@ -175,6 +181,8 @@ impl<T> CubaIntegrator<T> {
         ncomp: *const c_int,
         f: *mut c_double,
         userdata: *mut c_void,
+        nvec: *const c_int,
+        core: *const c_int,
     ) -> c_int {
         unsafe {
             let k: &mut CubaUserData<T> = &mut *(userdata as *mut _);
@@ -184,6 +192,8 @@ impl<T> CubaIntegrator<T> {
                 &slice::from_raw_parts(x, *ndim as usize),
                 &mut slice::from_raw_parts_mut(f, *ncomp as usize),
                 &mut k.user_data,
+                *nvec as usize,
+                *core as i32,
             );
             res as c_int
         }
