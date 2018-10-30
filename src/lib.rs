@@ -61,7 +61,7 @@ pub enum CubaVerbosity {
 
 macro_rules! gen_setter {
     ($setr:ident, $r:ident, $t: ty) => {
-        pub fn $setr(&mut self, $r: $t) -> &mut CubaIntegrator<T> {
+        pub fn $setr(&mut self, $r: $t) -> &mut Self {
             self.$r = $r;
             self
         }
@@ -70,6 +70,8 @@ macro_rules! gen_setter {
 
 #[link(name = "cuba")]
 extern "C" {
+    fn cubacores(n: c_int, p: c_int);
+
     fn Vegas(
         ndim: c_int,
         ncomp: c_int,
@@ -143,10 +145,10 @@ pub struct CubaIntegrator<T> {
     maxeval: i32,
     nstart: i32,
     nincrease: i32,
-    seed: i32,
     epsrel: f64,
     epsabs: f64,
     batch: i32,
+    pseudo_random: bool,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -159,21 +161,31 @@ impl<T> CubaIntegrator<T> {
             maxeval: 50000,
             nstart: 1000,
             nincrease: 500,
-            seed: 0,
             epsrel: 0.001,
             epsabs: 1e-12,
             batch: 1000,
+            pseudo_random: false,
         }
+    }
+
+    /// Set the number of cores and the maximum number of points per core.
+    /// The default is the number of idle cores for `cores` and
+    /// 1000 for `max_points_per_core`.
+    pub fn set_cores(&mut self, cores: usize, max_points_per_core: usize) -> &mut Self {
+        unsafe {
+            cubacores(cores as c_int, max_points_per_core as c_int);
+        }
+        self
     }
 
     gen_setter!(set_mineval, mineval, i32);
     gen_setter!(set_maxeval, maxeval, i32);
     gen_setter!(set_nstart, nstart, i32);
     gen_setter!(set_nincrease, nincrease, i32);
-    gen_setter!(set_seed, seed, i32);
     gen_setter!(set_epsrel, epsrel, f64);
     gen_setter!(set_epsabs, epsabs, f64);
     gen_setter!(set_batch, batch, i32);
+    gen_setter!(set_pseudo_random, pseudo_random, bool);
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -238,7 +250,7 @@ impl<T> CubaIntegrator<T> {
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
                 verbosity as c_int,                     // flags
-                self.seed,                              // seed
+                self.pseudo_random as c_int,            // seed
                 self.mineval,                           // mineval
                 self.maxeval,                           // maxeval
                 self.nstart,                            // nstart
