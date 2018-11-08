@@ -148,7 +148,7 @@ pub struct CubaIntegrator<T> {
     epsrel: f64,
     epsabs: f64,
     batch: i32,
-    pseudo_random: bool,
+    seed: i32,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -164,7 +164,7 @@ impl<T> CubaIntegrator<T> {
             epsrel: 0.001,
             epsabs: 1e-12,
             batch: 1000,
-            pseudo_random: false,
+            seed: 0,
         }
     }
 
@@ -185,7 +185,7 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_epsrel, epsrel, f64);
     gen_setter!(set_epsabs, epsabs, f64);
     gen_setter!(set_batch, batch, i32);
-    gen_setter!(set_pseudo_random, pseudo_random, bool);
+    gen_setter!(set_seed, seed, i32);
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -213,15 +213,19 @@ impl<T> CubaIntegrator<T> {
 
     /// Integrate using the Vegas integrator.
     ///
-    /// * `ndim` - dimension of the input
-    /// * `ncomp` - dimension (components) of the output
+    /// * `ndim` - Dimension of the input
+    /// * `ncomp` - Dimension (components) of the output
     /// * `verbosity` - Verbosity level
+    /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
+    ///              If it is positive, the grid is storedin the `gridno`th slot.
+    ///              With a negative number the grid is cleared.
     /// * `user_data` - User data used by the integrand function
     pub fn vegas(
         &mut self,
         ndim: usize,
         ncomp: usize,
         verbosity: CubaVerbosity,
+        gridno: i32,
         user_data: T,
     ) -> CubaResult {
         let mut out = CubaResult {
@@ -231,6 +235,11 @@ impl<T> CubaIntegrator<T> {
             error: vec![0.; ncomp],
             prob: vec![0.; ncomp],
         };
+
+        assert!(
+            gridno >= -10 && gridno <= 10,
+            "Grid number needs to be between -10 and 10."
+        );
 
         // pass the safe integrand and the user data
         let mut x = CubaUserData {
@@ -250,13 +259,13 @@ impl<T> CubaIntegrator<T> {
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
                 verbosity as c_int,                     // flags
-                self.pseudo_random as c_int,            // seed
+                self.seed,                              // seed
                 self.mineval,                           // mineval
                 self.maxeval,                           // maxeval
                 self.nstart,                            // nstart
                 self.nincrease,                         // nincrease
                 self.batch,                             // batch
-                0,                                      // grid no
+                gridno,                                 // grid no
                 ptr::null_mut(),                        // statefile
                 ptr::null_mut(),                        // spin
                 &mut out.neval,

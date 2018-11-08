@@ -19,9 +19,9 @@ fn main() {
     ci.set_mineval(10)
         .set_maxeval(10000000)
         .set_epsrel(0.0001)
-        .set_pseudo_random(true)
+        .set_seed(0) // use quasi-random numbers
         .set_cores(2, 1000);
 
-    let r = ci.vegas(2, 2, CubaVerbosity::Progress, UserData { f1: 5., f2: 7. });
+    let r = ci.vegas(2, 2, CubaVerbosity::Progress, 0, UserData { f1: 5., f2: 7. });
     println!("{:#?}", r);
 }
