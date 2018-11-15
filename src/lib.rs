@@ -44,6 +44,7 @@
 //! ```
 extern crate libc;
 use libc::{c_char, c_double, c_int, c_void};
+use std::ffi::CString;
 use std::ptr;
 use std::slice;
 
@@ -149,6 +150,10 @@ pub struct CubaIntegrator<T> {
     epsabs: f64,
     batch: i32,
     seed: i32,
+    use_only_last_sample: bool,
+    save_state_file: String,
+    keep_state_file: bool,
+    reset_vegas_integrator: bool,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -165,6 +170,10 @@ impl<T> CubaIntegrator<T> {
             epsabs: 1e-12,
             batch: 1000,
             seed: 0,
+            use_only_last_sample: false,
+            save_state_file: String::new(),
+            keep_state_file: false,
+            reset_vegas_integrator: false,
         }
     }
 
@@ -186,6 +195,10 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_epsabs, epsabs, f64);
     gen_setter!(set_batch, batch, i32);
     gen_setter!(set_seed, seed, i32);
+    gen_setter!(set_use_only_last_sample, use_only_last_sample, bool);
+    gen_setter!(set_save_state_file, save_state_file, String);
+    gen_setter!(set_keep_state_file, keep_state_file, bool);
+    gen_setter!(set_reset_vegas_integrator, reset_vegas_integrator, bool);
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -249,6 +262,23 @@ impl<T> CubaIntegrator<T> {
 
         let user_data_ptr = &mut x as *mut _ as *mut c_void;
 
+        let mut cubaflags = 0;
+        // Bits 0 and 1 set the CubaVerbosity
+        cubaflags += verbosity as i32;
+        // Bit 2 sets whether only last sample should be used
+        if self.use_only_last_sample {
+            cubaflags += 2_i32.pow(2);
+        }
+        // Bit 4 specifies whether the state file should be retained after integration
+        if self.keep_state_file {
+            cubaflags += 4_i32.pow(2);
+        }
+        // Bit 5 specifies whether the integrator state (except the grid) should be reset
+        // after having loaded a state file (Vegas only)
+        if self.reset_vegas_integrator {
+            cubaflags += 5_i32.pow(2);
+        }
+        let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
             Vegas(
                 ndim as c_int,                          // ndim
@@ -258,7 +288,7 @@ impl<T> CubaIntegrator<T> {
                 1,                                      // nvec
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
-                verbosity as c_int,                     // flags
+                cubaflags as c_int,                     // flags
                 self.seed,                              // seed
                 self.mineval,                           // mineval
                 self.maxeval,                           // maxeval
@@ -266,7 +296,7 @@ impl<T> CubaIntegrator<T> {
                 self.nincrease,                         // nincrease
                 self.batch,                             // batch
                 gridno,                                 // grid no
-                ptr::null_mut(),                        // statefile
+                c_str.as_ptr(),                         // statefile
                 ptr::null_mut(),                        // spin
                 &mut out.neval,
                 &mut out.fail,
