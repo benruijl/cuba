@@ -44,9 +44,9 @@
 //! ```
 extern crate libc;
 use libc::{c_char, c_double, c_int, c_void};
+use std::ffi::CString;
 use std::ptr;
 use std::slice;
-use std::ffi::CString;
 
 /// Logging level.
 ///
@@ -150,10 +150,10 @@ pub struct CubaIntegrator<T> {
     epsabs: f64,
     batch: i32,
     seed: i32,
-    use_only_last_sample : bool,
-    save_state_file : String,
-    keep_state_file : bool,
-    reset_vegas_integrator : bool,
+    use_only_last_sample: bool,
+    save_state_file: String,
+    keep_state_file: bool,
+    reset_vegas_integrator: bool,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -170,10 +170,10 @@ impl<T> CubaIntegrator<T> {
             epsabs: 1e-12,
             batch: 1000,
             seed: 0,
-            use_only_last_sample : false,
-            save_state_file : String::new(),
-            keep_state_file : false,
-            reset_vegas_integrator : false,
+            use_only_last_sample: false,
+            save_state_file: String::new(),
+            keep_state_file: false,
+            reset_vegas_integrator: false,
         }
     }
 
@@ -199,7 +199,6 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_save_state_file, save_state_file, String);
     gen_setter!(set_keep_state_file, keep_state_file, bool);
     gen_setter!(set_reset_vegas_integrator, reset_vegas_integrator, bool);
-
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -297,7 +296,7 @@ impl<T> CubaIntegrator<T> {
                 self.nincrease,                         // nincrease
                 self.batch,                             // batch
                 gridno,                                 // grid no
-                c_str.as_ptr(),                       // statefile
+                c_str.as_ptr(),                         // statefile
                 ptr::null_mut(),                        // spin
                 &mut out.neval,
                 &mut out.fail,
