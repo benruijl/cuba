@@ -43,7 +43,7 @@
 //! }
 //! ```
 extern crate libc;
-use libc::{c_char, c_double, c_int, c_void};
+use libc::{c_char, c_double, c_int, c_longlong, c_void};
 use std::ffi::CString;
 use std::ptr;
 use std::slice;
@@ -73,25 +73,25 @@ macro_rules! gen_setter {
 extern "C" {
     fn cubacores(n: c_int, p: c_int);
 
-    fn Vegas(
+    fn llVegas(
         ndim: c_int,
         ncomp: c_int,
         integrand: Option<IntegrandC>,
         userdata: *mut c_void,
-        nvec: c_int,
+        nvec: c_longlong,
         epsrel: c_double,
         epsabs: c_double,
         flags: c_int,
         seed: c_int,
-        mineval: c_int,
-        maxeval: c_int,
-        nstart: c_int,
-        nincrease: c_int,
-        nbatch: c_int,
+        mineval: c_longlong,
+        maxeval: c_longlong,
+        nstart: c_longlong,
+        nincrease: c_longlong,
+        nbatch: c_longlong,
         gridno: c_int,
         statefile: *const c_char,
         spin: *mut c_void,
-        neval: *mut c_int,
+        neval: *mut c_longlong,
         fail: *mut c_int,
         integral: *mut c_double,
         error: *mut c_double,
@@ -132,7 +132,7 @@ struct CubaUserData<T> {
 /// The result of an integration with Cuba.
 #[derive(Debug)]
 pub struct CubaResult {
-    pub neval: i32,
+    pub neval: i64,
     pub fail: i32,
     pub result: Vec<f64>,
     pub error: Vec<f64>,
@@ -142,13 +142,13 @@ pub struct CubaResult {
 /// A Cuba integrator. It should be created with an integrand function.
 pub struct CubaIntegrator<T> {
     integrand: Integrand<T>,
-    mineval: i32,
-    maxeval: i32,
-    nstart: i32,
-    nincrease: i32,
+    mineval: i64,
+    maxeval: i64,
+    nstart: i64,
+    nincrease: i64,
     epsrel: f64,
     epsabs: f64,
-    batch: i32,
+    batch: i64,
     seed: i32,
     use_only_last_sample: bool,
     save_state_file: String,
@@ -187,13 +187,13 @@ impl<T> CubaIntegrator<T> {
         self
     }
 
-    gen_setter!(set_mineval, mineval, i32);
-    gen_setter!(set_maxeval, maxeval, i32);
-    gen_setter!(set_nstart, nstart, i32);
-    gen_setter!(set_nincrease, nincrease, i32);
+    gen_setter!(set_mineval, mineval, i64);
+    gen_setter!(set_maxeval, maxeval, i64);
+    gen_setter!(set_nstart, nstart, i64);
+    gen_setter!(set_nincrease, nincrease, i64);
     gen_setter!(set_epsrel, epsrel, f64);
     gen_setter!(set_epsabs, epsabs, f64);
-    gen_setter!(set_batch, batch, i32);
+    gen_setter!(set_batch, batch, i64);
     gen_setter!(set_seed, seed, i32);
     gen_setter!(set_use_only_last_sample, use_only_last_sample, bool);
     gen_setter!(set_save_state_file, save_state_file, String);
@@ -280,7 +280,7 @@ impl<T> CubaIntegrator<T> {
         }
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
-            Vegas(
+            llVegas(
                 ndim as c_int,                          // ndim
                 ncomp as c_int,                         // ncomp
                 Some(CubaIntegrator::<T>::c_integrand), // integrand
