@@ -8,10 +8,16 @@ struct UserData {
 }
 
 #[inline(always)]
-fn integrand(x: &[f64], f: &mut [f64], user_data: &mut UserData, _nvec: usize, _core: i32) -> i32 {
+fn integrand(
+    x: &[f64],
+    f: &mut [f64],
+    user_data: &mut UserData,
+    _nvec: usize,
+    _core: i32,
+) -> Result<(), &'static str> {
     f[0] = (x[0] * x[1]).sin() * user_data.f1;
     f[1] = (x[1] * x[1]).cos() * user_data.f2;
-    0
+    Ok(())
 }
 
 fn main() {
@@ -22,6 +28,12 @@ fn main() {
         .set_seed(0) // use quasi-random numbers
         .set_cores(2, 1000);
 
-    let r = ci.vegas(2, 2, CubaVerbosity::Progress, 0, UserData { f1: 5., f2: 7. });
+    let r = ci.vegas(
+        2,
+        2,
+        CubaVerbosity::Progress,
+        0,
+        UserData { f1: 5., f2: 7. },
+    );
     println!("{:#?}", r);
 }

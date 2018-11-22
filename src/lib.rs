@@ -1,5 +1,7 @@
 //! Rust binding for the Cuba integrator.
 //!
+//! Cuba (http://www.feynarts.de/cuba/) is written by Thomas Hahn.
+//!
 //! # Usage
 //! Create a `CubaIntegrator` and supply it with a function of the form
 //!
@@ -119,9 +121,9 @@ type IntegrandC = extern "C" fn(
 /// `core` specifies the current core that is being used. This can be used to write to
 /// the user data in a thread-safe way.
 ///
-/// The return value is ignored, unless it is -999. Then the integration will be aborted.
-pub type Integrand<T> =
-    fn(x: &[f64], f: &mut [f64], user_data: &mut T, nvec: usize, core: i32) -> i32;
+/// On returning an error, the integration will be aborted.
+pub type Integrand<T> = fn(x: &[f64], f: &mut [f64], user_data: &mut T, nvec: usize, core: i32)
+    -> Result<(), &'static str>;
 
 #[repr(C)]
 struct CubaUserData<T> {
@@ -213,14 +215,19 @@ impl<T> CubaIntegrator<T> {
             let k: &mut CubaUserData<T> = &mut *(userdata as *mut _);
 
             // call the safe integrand
-            let res: i32 = (k.integrand)(
+            match (k.integrand)(
                 &slice::from_raw_parts(x, *ndim as usize),
                 &mut slice::from_raw_parts_mut(f, *ncomp as usize),
                 &mut k.user_data,
                 *nvec as usize,
                 *core as i32,
-            );
-            res as c_int
+            ) {
+                Ok(_) => 0,
+                Err(e) => {
+                    println!("Error during integration: {}. Aborting.", e);
+                    -999
+                }
+            }
         }
     }
 
