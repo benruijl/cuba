@@ -269,21 +269,20 @@ impl<T> CubaIntegrator<T> {
 
         let user_data_ptr = &mut x as *mut _ as *mut c_void;
 
-        let mut cubaflags = 0;
         // Bits 0 and 1 set the CubaVerbosity
-        cubaflags += verbosity as i32;
+        let mut cubaflags = verbosity as i32;
         // Bit 2 sets whether only last sample should be used
         if self.use_only_last_sample {
-            cubaflags += 2_i32.pow(2);
+            cubaflags |= 0b100;
         }
         // Bit 4 specifies whether the state file should be retained after integration
         if self.keep_state_file {
-            cubaflags += 4_i32.pow(2);
+            cubaflags |= 0b1000;
         }
         // Bit 5 specifies whether the integrator state (except the grid) should be reset
         // after having loaded a state file (Vegas only)
         if self.reset_vegas_integrator {
-            cubaflags += 5_i32.pow(2);
+            cubaflags |= 0b10000;
         }
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
