@@ -277,12 +277,12 @@ impl<T> CubaIntegrator<T> {
         }
         // Bit 4 specifies whether the state file should be retained after integration
         if self.keep_state_file {
-            cubaflags |= 0b1000;
+            cubaflags |= 0b10000;
         }
         // Bit 5 specifies whether the integrator state (except the grid) should be reset
         // after having loaded a state file (Vegas only)
         if self.reset_vegas_integrator {
-            cubaflags |= 0b10000;
+            cubaflags |= 0b100000;
         }
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
