@@ -99,6 +99,29 @@ extern "C" {
         error: *mut c_double,
         prob: *mut c_double,
     );
+
+    fn llCuhre(
+        ndim: c_int,
+        ncomp: c_int,
+        integrand: Option<IntegrandC>,
+        userdata: *mut c_void,
+        nvec: c_longlong,
+        epsrel: c_double,
+        epsabs: c_double,
+        flags: c_int,
+        mineval: c_longlong,
+        maxeval: c_longlong,
+        key: c_int,
+        statefile: *const c_char,
+        spin: *mut c_void,
+        nregions: *mut c_int,
+        neval: *mut c_longlong,
+        fail: *mut c_int,
+        integral: *mut c_double,
+        error: *mut c_double,
+        prob: *mut c_double,
+    );
+
 }
 
 type IntegrandC = extern "C" fn(
@@ -122,8 +145,13 @@ type IntegrandC = extern "C" fn(
 /// the user data in a thread-safe way.
 ///
 /// On returning an error, the integration will be aborted.
-pub type Integrand<T> = fn(x: &[f64], f: &mut [f64], user_data: &mut T, nvec: usize, core: i32)
-    -> Result<(), &'static str>;
+pub type Integrand<T> = fn(
+    x: &[f64],
+    f: &mut [f64],
+    user_data: &mut T,
+    nvec: usize,
+    core: i32,
+) -> Result<(), &'static str>;
 
 #[repr(C)]
 struct CubaUserData<T> {
@@ -156,6 +184,7 @@ pub struct CubaIntegrator<T> {
     save_state_file: String,
     keep_state_file: bool,
     reset_vegas_integrator: bool,
+    key: i32,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -176,6 +205,7 @@ impl<T> CubaIntegrator<T> {
             save_state_file: String::new(),
             keep_state_file: false,
             reset_vegas_integrator: false,
+            key: 0,
         }
     }
 
@@ -201,6 +231,7 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_save_state_file, save_state_file, String);
     gen_setter!(set_keep_state_file, keep_state_file, bool);
     gen_setter!(set_reset_vegas_integrator, reset_vegas_integrator, bool);
+    gen_setter!(set_key, key, i32);
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -304,6 +335,75 @@ impl<T> CubaIntegrator<T> {
                 gridno,                                 // grid no
                 c_str.as_ptr(),                         // statefile
                 ptr::null_mut(),                        // spin
+                &mut out.neval,
+                &mut out.fail,
+                &mut out.result[0],
+                &mut out.error[0],
+                &mut out.prob[0],
+            );
+        }
+
+        out
+    }
+
+    /// Integrate using the Cuhre integrator.
+    ///
+    /// * `ndim` - Dimension of the input
+    /// * `ncomp` - Dimension (components) of the output
+    /// * `verbosity` - Verbosity level
+    /// * `user_data` - User data used by the integrand function
+    pub fn cuhre(
+        &mut self,
+        ndim: usize,
+        ncomp: usize,
+        verbosity: CubaVerbosity,
+        user_data: T,
+    ) -> CubaResult {
+        let mut out = CubaResult {
+            neval: 0,
+            fail: 0,
+            result: vec![0.; ncomp],
+            error: vec![0.; ncomp],
+            prob: vec![0.; ncomp],
+        };
+
+        // pass the safe integrand and the user data
+        let mut x = CubaUserData {
+            integrand: self.integrand,
+            user_data: user_data,
+        };
+
+        let user_data_ptr = &mut x as *mut _ as *mut c_void;
+
+        // Bits 0 and 1 set the CubaVerbosity
+        let mut cubaflags = verbosity as i32;
+        // Bit 2 sets whether only last sample should be used
+        if self.use_only_last_sample {
+            cubaflags |= 0b100;
+        }
+        // Bit 4 specifies whether the state file should be retained after integration
+        if self.keep_state_file {
+            cubaflags |= 0b10000;
+        }
+
+        let mut nregions = 0;
+        let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
+        unsafe {
+            llCuhre(
+                ndim as c_int,                          // ndim
+                ncomp as c_int,                         // ncomp
+                Some(CubaIntegrator::<T>::c_integrand), // integrand
+                user_data_ptr,                          // user data
+                1,                                      // nvec
+                self.epsrel,                            // epsrel
+                self.epsabs,                            // epsabs
+                cubaflags as c_int,                     // flags
+                self.mineval,                           // mineval
+                self.maxeval,                           // maxeval
+                self.key,                               // key
+                c_str.as_ptr(),                         // statefile
+                ptr::null_mut(),                        // spin
+                &mut nregions,
                 &mut out.neval,
                 &mut out.fail,
                 &mut out.result[0],
