@@ -100,6 +100,31 @@ extern "C" {
         prob: *mut c_double,
     );
 
+    fn llSuave(
+        ndim: c_int,
+        ncomp: c_int,
+        integrand: Option<IntegrandC>,
+        userdata: *mut c_void,
+        nvec: c_longlong,
+        epsrel: c_double,
+        epsabs: c_double,
+        flags: c_int,
+        seed: c_int,
+        mineval: c_longlong,
+        maxeval: c_longlong,
+        nnew: c_longlong,
+        nmin: c_longlong,
+        flatness: c_double,
+        statefile: *const c_char,
+        spin: *mut c_void,
+        nregions: *mut c_int,
+        neval: *mut c_longlong,
+        fail: *mut c_int,
+        integral: *mut c_double,
+        error: *mut c_double,
+        prob: *mut c_double,
+    );
+
     fn llCuhre(
         ndim: c_int,
         ncomp: c_int,
@@ -121,7 +146,6 @@ extern "C" {
         error: *mut c_double,
         prob: *mut c_double,
     );
-
 }
 
 type IntegrandC = extern "C" fn(
@@ -335,6 +359,94 @@ impl<T> CubaIntegrator<T> {
                 gridno,                                 // grid no
                 c_str.as_ptr(),                         // statefile
                 ptr::null_mut(),                        // spin
+                &mut out.neval,
+                &mut out.fail,
+                &mut out.result[0],
+                &mut out.error[0],
+                &mut out.prob[0],
+            );
+        }
+
+        out
+    }
+
+    /// Integrate using the Suave integrator.
+    ///
+    /// * `ndim` - Dimension of the input
+    /// * `ncomp` - Dimension (components) of the output
+    /// * `nnew` - Number of new integrand evaluations in each subdivision
+    /// * `nmin` - Minimum number of samples a former pass must contribute to a
+    ///            subregion to be considered in that region’s compound integral value
+    /// * `flatness` - This determines how prominently individual samples with a large fluctuation
+    ///                figure in the total fluctuation
+    /// * `verbosity` - Verbosity level
+    /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
+    ///              If it is positive, the grid is storedin the `gridno`th slot.
+    ///              With a negative number the grid is cleared.
+    /// * `user_data` - User data used by the integrand function
+    pub fn suave(
+        &mut self,
+        ndim: usize,
+        ncomp: usize,
+        nnew: usize,
+        nmin: usize,
+        flatness: f64,
+        verbosity: CubaVerbosity,
+        user_data: T,
+    ) -> CubaResult {
+        let mut out = CubaResult {
+            neval: 0,
+            fail: 0,
+            result: vec![0.; ncomp],
+            error: vec![0.; ncomp],
+            prob: vec![0.; ncomp],
+        };
+
+        // pass the safe integrand and the user data
+        let mut x = CubaUserData {
+            integrand: self.integrand,
+            user_data: user_data,
+        };
+
+        let user_data_ptr = &mut x as *mut _ as *mut c_void;
+
+        // Bits 0 and 1 set the CubaVerbosity
+        let mut cubaflags = verbosity as i32;
+        // Bit 2 sets whether only last sample should be used
+        if self.use_only_last_sample {
+            cubaflags |= 0b100;
+        }
+        // Bit 4 specifies whether the state file should be retained after integration
+        if self.keep_state_file {
+            cubaflags |= 0b10000;
+        }
+        // Bit 5 specifies whether the integrator state (except the grid) should be reset
+        // after having loaded a state file (Vegas only)
+        if self.reset_vegas_integrator {
+            cubaflags |= 0b100000;
+        }
+
+        let mut nregions = 0;
+        let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
+        unsafe {
+            llSuave(
+                ndim as c_int,                          // ndim
+                ncomp as c_int,                         // ncomp
+                Some(CubaIntegrator::<T>::c_integrand), // integrand
+                user_data_ptr,                          // user data
+                1,                                      // nvec
+                self.epsrel,                            // epsrel
+                self.epsabs,                            // epsabs
+                cubaflags as c_int,                     // flags
+                self.seed,                              // seed
+                self.mineval,                           // mineval
+                self.maxeval,                           // maxeval
+                nnew as c_longlong,
+                nmin as c_longlong,
+                flatness,
+                c_str.as_ptr(),
+                ptr::null_mut(),
+                &mut nregions,
                 &mut out.neval,
                 &mut out.fail,
                 &mut out.result[0],
