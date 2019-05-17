@@ -203,6 +203,8 @@ pub struct CubaIntegrator<T> {
     epsrel: f64,
     epsabs: f64,
     batch: i64,
+    cores: usize,
+    max_points_per_core: usize,
     seed: i32,
     use_only_last_sample: bool,
     save_state_file: String,
@@ -224,6 +226,8 @@ impl<T> CubaIntegrator<T> {
             epsrel: 0.001,
             epsabs: 1e-12,
             batch: 1000,
+            cores: 1,
+            max_points_per_core: 1000,
             seed: 0,
             use_only_last_sample: false,
             save_state_file: String::new(),
@@ -237,6 +241,8 @@ impl<T> CubaIntegrator<T> {
     /// The default is the number of idle cores for `cores` and
     /// 1000 for `max_points_per_core`.
     pub fn set_cores(&mut self, cores: usize, max_points_per_core: usize) -> &mut Self {
+        self.cores = cores;
+        self.max_points_per_core = max_points_per_core;
         unsafe {
             cubacores(cores as c_int, max_points_per_core as c_int);
         }
@@ -271,8 +277,8 @@ impl<T> CubaIntegrator<T> {
 
             // call the safe integrand
             match (k.integrand)(
-                &slice::from_raw_parts(x, *ndim as usize),
-                &mut slice::from_raw_parts_mut(f, *ncomp as usize),
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &mut slice::from_raw_parts_mut(f, *ncomp as usize * *nvec as usize),
                 &mut k.user_data,
                 *nvec as usize,
                 *core as i32,
@@ -290,6 +296,7 @@ impl<T> CubaIntegrator<T> {
     ///
     /// * `ndim` - Dimension of the input
     /// * `ncomp` - Dimension (components) of the output
+    /// * `nvec` - Number of input points given to the integrand function
     /// * `verbosity` - Verbosity level
     /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
     ///              If it is positive, the grid is storedin the `gridno`th slot.
@@ -299,6 +306,7 @@ impl<T> CubaIntegrator<T> {
         &mut self,
         ndim: usize,
         ncomp: usize,
+        nvec: usize,
         verbosity: CubaVerbosity,
         gridno: i32,
         user_data: T,
@@ -314,6 +322,12 @@ impl<T> CubaIntegrator<T> {
         assert!(
             gridno >= -10 && gridno <= 10,
             "Grid number needs to be between -10 and 10."
+        );
+
+        assert!(
+            nvec <= self.batch as usize
+                && nvec <= self.max_points_per_core
+            "nvec needs to be at most the vegas batch size or the max points per core"
         );
 
         // pass the safe integrand and the user data
@@ -346,7 +360,7 @@ impl<T> CubaIntegrator<T> {
                 ncomp as c_int,                         // ncomp
                 Some(CubaIntegrator::<T>::c_integrand), // integrand
                 user_data_ptr,                          // user data
-                1,                                      // nvec
+                nvec as c_longlong,                     // nvec
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
                 cubaflags as c_int,                     // flags
@@ -374,6 +388,7 @@ impl<T> CubaIntegrator<T> {
     ///
     /// * `ndim` - Dimension of the input
     /// * `ncomp` - Dimension (components) of the output
+    /// * `nvec` - Number of input points given to the integrand function
     /// * `nnew` - Number of new integrand evaluations in each subdivision
     /// * `nmin` - Minimum number of samples a former pass must contribute to a
     ///            subregion to be considered in that region’s compound integral value
@@ -388,6 +403,7 @@ impl<T> CubaIntegrator<T> {
         &mut self,
         ndim: usize,
         ncomp: usize,
+        nvec: usize,
         nnew: usize,
         nmin: usize,
         flatness: f64,
@@ -401,6 +417,11 @@ impl<T> CubaIntegrator<T> {
             error: vec![0.; ncomp],
             prob: vec![0.; ncomp],
         };
+
+        assert!(
+            nvec <= self.max_points_per_core && nvec <= nnew,
+            "nvec needs to be at most the max points per core and nnew"
+        );
 
         // pass the safe integrand and the user data
         let mut x = CubaUserData {
@@ -434,7 +455,7 @@ impl<T> CubaIntegrator<T> {
                 ncomp as c_int,                         // ncomp
                 Some(CubaIntegrator::<T>::c_integrand), // integrand
                 user_data_ptr,                          // user data
-                1,                                      // nvec
+                nvec as c_longlong,                     // nvec
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
                 cubaflags as c_int,                     // flags
@@ -462,12 +483,14 @@ impl<T> CubaIntegrator<T> {
     ///
     /// * `ndim` - Dimension of the input
     /// * `ncomp` - Dimension (components) of the output
+    /// * `nvec` - Number of input points given to the integrand function
     /// * `verbosity` - Verbosity level
     /// * `user_data` - User data used by the integrand function
     pub fn cuhre(
         &mut self,
         ndim: usize,
         ncomp: usize,
+        nvec: usize,
         verbosity: CubaVerbosity,
         user_data: T,
     ) -> CubaResult {
@@ -478,6 +501,8 @@ impl<T> CubaIntegrator<T> {
             error: vec![0.; ncomp],
             prob: vec![0.; ncomp],
         };
+
+        assert!(nvec <= 32, "nvec needs to be at most 32");
 
         // pass the safe integrand and the user data
         let mut x = CubaUserData {
@@ -506,7 +531,7 @@ impl<T> CubaIntegrator<T> {
                 ncomp as c_int,                         // ncomp
                 Some(CubaIntegrator::<T>::c_integrand), // integrand
                 user_data_ptr,                          // user data
-                1,                                      // nvec
+                nvec as c_longlong,                     // nvec
                 self.epsrel,                            // epsrel
                 self.epsabs,                            // epsabs
                 cubaflags as c_int,                     // flags

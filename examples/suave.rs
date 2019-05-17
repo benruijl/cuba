@@ -25,12 +25,15 @@ fn main() {
     ci.set_mineval(10)
         .set_maxeval(10000000)
         .set_epsrel(0.0001)
-        .set_cores(2, 1000);
+        .set_cores(2, 10000);
 
-    let r = ci.cuhre(
+    let r = ci.suave(
         2,
         2,
         1,
+        1000,
+        1000,
+        10.,
         CubaVerbosity::Progress,
         UserData { f1: 5., f2: 7. },
     );

@@ -12,11 +12,14 @@ fn integrand(
     x: &[f64],
     f: &mut [f64],
     user_data: &mut UserData,
-    _nvec: usize,
+    nvec: usize,
     _core: i32,
 ) -> Result<(), &'static str> {
-    f[0] = (x[0] * x[1]).sin() * user_data.f1;
-    f[1] = (x[1] * x[1]).cos() * user_data.f2;
+    for i in 0..nvec {
+        f[i * 2] = (x[i * 2] * x[i * 2]).sin() * user_data.f1;
+        f[i * 2 + 1] = (x[i * 2 + 1] * x[i * 2 + 1]).cos() * user_data.f2;
+    }
+
     Ok(())
 }
 
@@ -28,12 +31,8 @@ fn main() {
         .set_seed(0) // use quasi-random numbers
         .set_cores(2, 1000);
 
-    let r = ci.vegas(
-        2,
-        2,
-        CubaVerbosity::Progress,
-        0,
-        UserData { f1: 5., f2: 7. },
-    );
+    let data = UserData { f1: 5., f2: 7. };
+    let r = ci.vegas(2, 2, 4, CubaVerbosity::Progress, 0, data);
+
     println!("{:#?}", r);
 }
