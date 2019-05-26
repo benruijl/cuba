@@ -125,6 +125,40 @@ extern "C" {
         prob: *mut c_double,
     );
 
+    fn llDivonne(
+        ndim: c_int,
+        ncomp: c_int,
+        integrand: Option<IntegrandC>,
+        userdata: *mut c_void,
+        nvec: c_longlong,
+        epsrel: c_double,
+        epsabs: c_double,
+        flags: c_int,
+        seed: c_int,
+        mineval: c_longlong,
+        maxeval: c_longlong,
+        key1: c_int,
+        key2: c_int,
+        key3: c_int,
+        maxpass: c_int,
+        border: c_double,
+        maxchisq: c_double,
+        mindeviation: c_double,
+        ngiven: c_longlong,
+        lxdgiven: c_int,
+        xgiven: *const c_double,
+        nextra: c_longlong,
+        peakfinder: Option<PeakfinderC>,
+        statefile: *const c_char,
+        spin: *mut c_void,
+        nregions: *mut c_int,
+        neval: *mut c_longlong,
+        fail: *mut c_int,
+        integral: *mut c_double,
+        error: *mut c_double,
+        prob: *mut c_double,
+    );
+
     fn llCuhre(
         ndim: c_int,
         ncomp: c_int,
@@ -157,6 +191,14 @@ type IntegrandC = extern "C" fn(
     nvec: *const c_int,
     core: *const c_int,
 ) -> c_int;
+
+type PeakfinderC = extern "C" fn(
+    ndim: *const c_int,
+    b: *const c_double,
+    n: *mut c_int,
+    x: *mut c_double,
+    userdata: *mut c_void,
+);
 
 /// Integrand evaluation function.
 ///
@@ -210,7 +252,16 @@ pub struct CubaIntegrator<T> {
     save_state_file: String,
     keep_state_file: bool,
     reset_vegas_integrator: bool,
+    // Cuhre
     key: i32,
+    // Divonne
+    key1: i32,
+    key2: i32,
+    key3: i32,
+    maxpass: i32,
+    border: f64,
+    maxchisq: f64,
+    mindeviation: f64,
 }
 
 impl<T> CubaIntegrator<T> {
@@ -234,6 +285,13 @@ impl<T> CubaIntegrator<T> {
             keep_state_file: false,
             reset_vegas_integrator: false,
             key: 0,
+            key1: 47,
+            key2: 1,
+            key3: 1,
+            maxpass: 5,
+            border: 0.,
+            maxchisq: 10.,
+            mindeviation: 0.25,
         }
     }
 
@@ -262,6 +320,13 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_keep_state_file, keep_state_file, bool);
     gen_setter!(set_reset_vegas_integrator, reset_vegas_integrator, bool);
     gen_setter!(set_key, key, i32);
+    gen_setter!(set_key1, key1, i32);
+    gen_setter!(set_key2, key2, i32);
+    gen_setter!(set_key3, key3, i32);
+    gen_setter!(set_maxpass, maxpass, i32);
+    gen_setter!(set_border, border, f64);
+    gen_setter!(set_maxchisq, maxchisq, f64);
+    gen_setter!(set_mindeviation, mindeviation, f64);
 
     extern "C" fn c_integrand(
         ndim: *const c_int,
@@ -290,6 +355,16 @@ impl<T> CubaIntegrator<T> {
                 }
             }
         }
+    }
+
+    extern "C" fn c_peakfinder(
+        ndim: *const c_int,
+        b: *const c_double,
+        n: *mut c_int,
+        x: *mut c_double,
+        userdata: *mut c_void,
+    ) {
+        // TODO: call a safe peakfinder routine
     }
 
     /// Integrate using the Vegas integrator.
@@ -465,6 +540,108 @@ impl<T> CubaIntegrator<T> {
                 nnew as c_longlong,
                 nmin as c_longlong,
                 flatness,
+                c_str.as_ptr(),
+                ptr::null_mut(),
+                &mut nregions,
+                &mut out.neval,
+                &mut out.fail,
+                &mut out.result[0],
+                &mut out.error[0],
+                &mut out.prob[0],
+            );
+        }
+
+        out
+    }
+
+    /// Integrate using the Divonne integrator.
+    ///
+    /// * `ndim` - Dimension of the input
+    /// * `ncomp` - Dimension (components) of the output
+    /// * `nvec` - Number of input points given to the integrand function
+    /// * `xgiven` - A list of input points which lie close to peaks
+    /// * `verbosity` - Verbosity level
+    /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
+    ///              If it is positive, the grid is storedin the `gridno`th slot.
+    ///              With a negative number the grid is cleared.
+    /// * `user_data` - User data used by the integrand function
+    pub fn divonne(
+        &mut self,
+        ndim: usize,
+        ncomp: usize,
+        nvec: usize,
+        xgiven: &[f64],
+        verbosity: CubaVerbosity,
+        user_data: T,
+    ) -> CubaResult {
+        let mut out = CubaResult {
+            neval: 0,
+            fail: 0,
+            result: vec![0.; ncomp],
+            error: vec![0.; ncomp],
+            prob: vec![0.; ncomp],
+        };
+
+        assert!(
+            nvec <= self.max_points_per_core,
+            "nvec needs to be at most the max points per core"
+        );
+
+        // pass the safe integrand and the user data
+        let mut x = CubaUserData {
+            integrand: self.integrand,
+            user_data: user_data,
+        };
+
+        let user_data_ptr = &mut x as *mut _ as *mut c_void;
+
+        // Bits 0 and 1 set the CubaVerbosity
+        let mut cubaflags = verbosity as i32;
+        // Bit 2 sets whether only last sample should be used
+        if self.use_only_last_sample {
+            cubaflags |= 0b100;
+        }
+        // Bit 4 specifies whether the state file should be retained after integration
+        if self.keep_state_file {
+            cubaflags |= 0b10000;
+        }
+        // Bit 5 specifies whether the integrator state (except the grid) should be reset
+        // after having loaded a state file (Vegas only)
+        if self.reset_vegas_integrator {
+            cubaflags |= 0b100000;
+        }
+
+        let mut nregions = 0;
+        let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
+        unsafe {
+            llDivonne(
+                ndim as c_int,                          // ndim
+                ncomp as c_int,                         // ncomp
+                Some(CubaIntegrator::<T>::c_integrand), // integrand
+                user_data_ptr,                          // user data
+                nvec as c_longlong,                     // nvec
+                self.epsrel,                            // epsrel
+                self.epsabs,                            // epsabs
+                cubaflags as c_int,                     // flags
+                self.seed,                              // seed
+                self.mineval,                           // mineval
+                self.maxeval,                           // maxeval
+                self.key1,
+                self.key2,
+                self.key3,
+                self.maxpass,
+                self.border,
+                self.maxchisq,
+                self.mindeviation,
+                (xgiven.len() / ndim) as c_longlong,
+                ndim as c_int,
+                if xgiven.len() == 0 {
+                    ptr::null_mut()
+                } else {
+                    &xgiven[0]
+                },
+                0,
+                None,
                 c_str.as_ptr(),
                 ptr::null_mut(),
                 &mut nregions,
