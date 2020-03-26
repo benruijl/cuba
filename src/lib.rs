@@ -400,8 +400,7 @@ impl<T> CubaIntegrator<T> {
         );
 
         assert!(
-            nvec <= self.batch as usize
-                && nvec <= self.max_points_per_core
+            nvec <= self.batch as usize && nvec <= self.max_points_per_core,
             "nvec needs to be at most the vegas batch size or the max points per core"
         );
 
@@ -470,9 +469,6 @@ impl<T> CubaIntegrator<T> {
     /// * `flatness` - This determines how prominently individual samples with a large fluctuation
     ///                figure in the total fluctuation
     /// * `verbosity` - Verbosity level
-    /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
-    ///              If it is positive, the grid is storedin the `gridno`th slot.
-    ///              With a negative number the grid is cleared.
     /// * `user_data` - User data used by the integrand function
     pub fn suave(
         &mut self,
@@ -561,9 +557,6 @@ impl<T> CubaIntegrator<T> {
     /// * `nvec` - Number of input points given to the integrand function
     /// * `xgiven` - A list of input points which lie close to peaks
     /// * `verbosity` - Verbosity level
-    /// * `gridno` - Grid number between -10 and 10. If 0, no grid is stored.
-    ///              If it is positive, the grid is storedin the `gridno`th slot.
-    ///              With a negative number the grid is cleared.
     /// * `user_data` - User data used by the integrand function
     pub fn divonne(
         &mut self,
