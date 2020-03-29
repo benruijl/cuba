@@ -21,7 +21,7 @@ fn integrand(
 }
 
 fn main() {
-    let mut ci = CubaIntegrator::new(integrand);
+    let mut ci = CubaIntegrator::new();
     ci.set_mineval(10)
         .set_maxeval(10000000)
         .set_epsrel(0.0001)
@@ -32,6 +32,7 @@ fn main() {
         2,
         1,
         CubaVerbosity::Progress,
+        integrand,
         UserData { f1: 5., f2: 7. },
     );
     println!("{:#?}", r);

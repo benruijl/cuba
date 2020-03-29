@@ -14,6 +14,8 @@ fn integrand(
     user_data: &mut UserData,
     _nvec: usize,
     _core: i32,
+    _weight: &[f64],
+    _iter: usize,
 ) -> Result<(), &'static str> {
     f[0] = (x[0] * x[1]).sin() * user_data.f1;
     f[1] = (x[1] * x[1]).cos() * user_data.f2;
@@ -21,7 +23,7 @@ fn integrand(
 }
 
 fn main() {
-    let mut ci = CubaIntegrator::new(integrand);
+    let mut ci = CubaIntegrator::new();
     ci.set_mineval(10)
         .set_maxeval(10000000)
         .set_epsrel(0.0001)
@@ -35,6 +37,7 @@ fn main() {
         1000,
         10.,
         CubaVerbosity::Progress,
+        integrand,
         UserData { f1: 5., f2: 7. },
     );
     println!("{:#?}", r);

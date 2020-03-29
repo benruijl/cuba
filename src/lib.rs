@@ -78,7 +78,7 @@ extern "C" {
     fn llVegas(
         ndim: c_int,
         ncomp: c_int,
-        integrand: Option<IntegrandC>,
+        integrand: Option<VegasIntegrandC>,
         userdata: *mut c_void,
         nvec: c_longlong,
         epsrel: c_double,
@@ -103,7 +103,7 @@ extern "C" {
     fn llSuave(
         ndim: c_int,
         ncomp: c_int,
-        integrand: Option<IntegrandC>,
+        integrand: Option<SuaveIntegrandC>,
         userdata: *mut c_void,
         nvec: c_longlong,
         epsrel: c_double,
@@ -128,7 +128,7 @@ extern "C" {
     fn llDivonne(
         ndim: c_int,
         ncomp: c_int,
-        integrand: Option<IntegrandC>,
+        integrand: Option<DivonneIntegrandC>,
         userdata: *mut c_void,
         nvec: c_longlong,
         epsrel: c_double,
@@ -162,7 +162,7 @@ extern "C" {
     fn llCuhre(
         ndim: c_int,
         ncomp: c_int,
-        integrand: Option<IntegrandC>,
+        integrand: Option<CuhreIntegrandC>,
         userdata: *mut c_void,
         nvec: c_longlong,
         epsrel: c_double,
@@ -182,7 +182,7 @@ extern "C" {
     );
 }
 
-type IntegrandC = extern "C" fn(
+type VegasIntegrandC = extern "C" fn(
     ndim: *const c_int,
     x: *const c_double,
     ncomp: *const c_int,
@@ -190,6 +190,41 @@ type IntegrandC = extern "C" fn(
     userdata: *mut c_void,
     nvec: *const c_int,
     core: *const c_int,
+    weight: *const c_double,
+    iter: *const c_int,
+) -> c_int;
+
+type SuaveIntegrandC = extern "C" fn(
+    ndim: *const c_int,
+    x: *const c_double,
+    ncomp: *const c_int,
+    f: *mut c_double,
+    userdata: *mut c_void,
+    nvec: *const c_int,
+    core: *const c_int,
+    weight: *const c_double,
+    iter: *const c_int,
+) -> c_int;
+
+type CuhreIntegrandC = extern "C" fn(
+    ndim: *const c_int,
+    x: *const c_double,
+    ncomp: *const c_int,
+    f: *mut c_double,
+    userdata: *mut c_void,
+    nvec: *const c_int,
+    core: *const c_int,
+) -> c_int;
+
+type DivonneIntegrandC = extern "C" fn(
+    ndim: *const c_int,
+    x: *const c_double,
+    ncomp: *const c_int,
+    f: *mut c_double,
+    userdata: *mut c_void,
+    nvec: *const c_int,
+    core: *const c_int,
+    phase: *const c_int,
 ) -> c_int;
 
 type PeakfinderC = extern "C" fn(
@@ -200,7 +235,7 @@ type PeakfinderC = extern "C" fn(
     userdata: *mut c_void,
 );
 
-/// Integrand evaluation function.
+/// Vegas integrand evaluation function.
 ///
 /// The dimensions of random input variables `x` and output `f`
 /// are provided to the integration routine as dimension and components respectively.
@@ -211,7 +246,49 @@ type PeakfinderC = extern "C" fn(
 /// the user data in a thread-safe way.
 ///
 /// On returning an error, the integration will be aborted.
-pub type Integrand<T> = fn(
+pub type VegasIntegrand<T> = fn(
+    x: &[f64],
+    f: &mut [f64],
+    user_data: &mut T,
+    nvec: usize,
+    core: i32,
+    weight: &[f64],
+    iter: usize,
+) -> Result<(), &'static str>;
+
+/// Suave integrand evaluation function.
+///
+/// The dimensions of random input variables `x` and output `f`
+/// are provided to the integration routine as dimension and components respectively.
+/// `T` can be any type. If you don't want to provide user data,
+/// simply make `T` a `usize` and provide any number.
+///
+/// `core` specifies the current core that is being used. This can be used to write to
+/// the user data in a thread-safe way.
+///
+/// On returning an error, the integration will be aborted.
+pub type SuaveIntegrand<T> = fn(
+    x: &[f64],
+    f: &mut [f64],
+    user_data: &mut T,
+    nvec: usize,
+    core: i32,
+    weight: &[f64],
+    iter: usize,
+) -> Result<(), &'static str>;
+
+/// Cuhre integrand evaluation function.
+///
+/// The dimensions of random input variables `x` and output `f`
+/// are provided to the integration routine as dimension and components respectively.
+/// `T` can be any type. If you don't want to provide user data,
+/// simply make `T` a `usize` and provide any number.
+///
+/// `core` specifies the current core that is being used. This can be used to write to
+/// the user data in a thread-safe way.
+///
+/// On returning an error, the integration will be aborted.
+pub type CuhreIntegrand<T> = fn(
     x: &[f64],
     f: &mut [f64],
     user_data: &mut T,
@@ -219,9 +296,47 @@ pub type Integrand<T> = fn(
     core: i32,
 ) -> Result<(), &'static str>;
 
+/// Divonne integrand evaluation function.
+///
+/// The dimensions of random input variables `x` and output `f`
+/// are provided to the integration routine as dimension and components respectively.
+/// `T` can be any type. If you don't want to provide user data,
+/// simply make `T` a `usize` and provide any number.
+///
+/// `core` specifies the current core that is being used. This can be used to write to
+/// the user data in a thread-safe way.
+///
+/// On returning an error, the integration will be aborted.
+pub type DivonneIntegrand<T> = fn(
+    x: &[f64],
+    f: &mut [f64],
+    user_data: &mut T,
+    nvec: usize,
+    core: i32,
+    phase: usize,
+) -> Result<(), &'static str>;
+
 #[repr(C)]
-struct CubaUserData<T> {
-    integrand: Integrand<T>,
+struct VegasUserData<T> {
+    integrand: VegasIntegrand<T>,
+    user_data: T,
+}
+
+#[repr(C)]
+struct CuhreUserData<T> {
+    integrand: CuhreIntegrand<T>,
+    user_data: T,
+}
+
+#[repr(C)]
+struct SuaveUserData<T> {
+    integrand: SuaveIntegrand<T>,
+    user_data: T,
+}
+
+#[repr(C)]
+struct DivonneUserData<T> {
+    integrand: DivonneIntegrand<T>,
     user_data: T,
 }
 
@@ -236,8 +351,7 @@ pub struct CubaResult {
 }
 
 /// A Cuba integrator. It should be created with an integrand function.
-pub struct CubaIntegrator<T> {
-    integrand: Integrand<T>,
+pub struct CubaIntegrator {
     mineval: i64,
     maxeval: i64,
     nstart: i64,
@@ -264,12 +378,11 @@ pub struct CubaIntegrator<T> {
     mindeviation: f64,
 }
 
-impl<T> CubaIntegrator<T> {
+impl CubaIntegrator {
     /// Create a new Cuba integrator. Use the `set_` functions
     /// to set integration parameters.
-    pub fn new(integrand: Integrand<T>) -> CubaIntegrator<T> {
+    pub fn new() -> CubaIntegrator {
         CubaIntegrator {
-            integrand,
             mineval: 0,
             maxeval: 50000,
             nstart: 1000,
@@ -328,7 +441,73 @@ impl<T> CubaIntegrator<T> {
     gen_setter!(set_maxchisq, maxchisq, f64);
     gen_setter!(set_mindeviation, mindeviation, f64);
 
-    extern "C" fn c_integrand(
+    extern "C" fn c_vegas_integrand<T>(
+        ndim: *const c_int,
+        x: *const c_double,
+        ncomp: *const c_int,
+        f: *mut c_double,
+        userdata: *mut c_void,
+        nvec: *const c_int,
+        core: *const c_int,
+        weight: *const c_double,
+        iter: *const c_int,
+    ) -> c_int {
+        unsafe {
+            let k: &mut VegasUserData<T> = &mut *(userdata as *mut _);
+
+            // call the safe integrand
+            match (k.integrand)(
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &mut slice::from_raw_parts_mut(f, *ncomp as usize * *nvec as usize),
+                &mut k.user_data,
+                *nvec as usize,
+                *core as i32,
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                *iter as usize,
+            ) {
+                Ok(_) => 0,
+                Err(e) => {
+                    println!("Error during integration: {}. Aborting.", e);
+                    -999
+                }
+            }
+        }
+    }
+
+    extern "C" fn c_suave_integrand<T>(
+        ndim: *const c_int,
+        x: *const c_double,
+        ncomp: *const c_int,
+        f: *mut c_double,
+        userdata: *mut c_void,
+        nvec: *const c_int,
+        core: *const c_int,
+        weight: *const c_double,
+        iter: *const c_int,
+    ) -> c_int {
+        unsafe {
+            let k: &mut SuaveUserData<T> = &mut *(userdata as *mut _);
+
+            // call the safe integrand
+            match (k.integrand)(
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &mut slice::from_raw_parts_mut(f, *ncomp as usize * *nvec as usize),
+                &mut k.user_data,
+                *nvec as usize,
+                *core as i32,
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                *iter as usize,
+            ) {
+                Ok(_) => 0,
+                Err(e) => {
+                    println!("Error during integration: {}. Aborting.", e);
+                    -999
+                }
+            }
+        }
+    }
+
+    extern "C" fn c_cuhre_integrand<T>(
         ndim: *const c_int,
         x: *const c_double,
         ncomp: *const c_int,
@@ -338,7 +517,7 @@ impl<T> CubaIntegrator<T> {
         core: *const c_int,
     ) -> c_int {
         unsafe {
-            let k: &mut CubaUserData<T> = &mut *(userdata as *mut _);
+            let k: &mut CuhreUserData<T> = &mut *(userdata as *mut _);
 
             // call the safe integrand
             match (k.integrand)(
@@ -347,6 +526,37 @@ impl<T> CubaIntegrator<T> {
                 &mut k.user_data,
                 *nvec as usize,
                 *core as i32,
+            ) {
+                Ok(_) => 0,
+                Err(e) => {
+                    println!("Error during integration: {}. Aborting.", e);
+                    -999
+                }
+            }
+        }
+    }
+
+    extern "C" fn c_divonne_integrand<T>(
+        ndim: *const c_int,
+        x: *const c_double,
+        ncomp: *const c_int,
+        f: *mut c_double,
+        userdata: *mut c_void,
+        nvec: *const c_int,
+        core: *const c_int,
+        phase: *const c_int,
+    ) -> c_int {
+        unsafe {
+            let k: &mut DivonneUserData<T> = &mut *(userdata as *mut _);
+
+            // call the safe integrand
+            match (k.integrand)(
+                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &mut slice::from_raw_parts_mut(f, *ncomp as usize * *nvec as usize),
+                &mut k.user_data,
+                *nvec as usize,
+                *core as i32,
+                *phase as usize,
             ) {
                 Ok(_) => 0,
                 Err(e) => {
@@ -377,13 +587,14 @@ impl<T> CubaIntegrator<T> {
     ///              If it is positive, the grid is storedin the `gridno`th slot.
     ///              With a negative number the grid is cleared.
     /// * `user_data` - User data used by the integrand function
-    pub fn vegas(
+    pub fn vegas<T>(
         &mut self,
         ndim: usize,
         ncomp: usize,
         nvec: usize,
         verbosity: CubaVerbosity,
         gridno: i32,
+        integrand: VegasIntegrand<T>,
         user_data: T,
     ) -> CubaResult {
         let mut out = CubaResult {
@@ -405,8 +616,8 @@ impl<T> CubaIntegrator<T> {
         );
 
         // pass the safe integrand and the user data
-        let mut x = CubaUserData {
-            integrand: self.integrand,
+        let mut x = VegasUserData {
+            integrand: integrand,
             user_data: user_data,
         };
 
@@ -430,23 +641,23 @@ impl<T> CubaIntegrator<T> {
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
             llVegas(
-                ndim as c_int,                          // ndim
-                ncomp as c_int,                         // ncomp
-                Some(CubaIntegrator::<T>::c_integrand), // integrand
-                user_data_ptr,                          // user data
-                nvec as c_longlong,                     // nvec
-                self.epsrel,                            // epsrel
-                self.epsabs,                            // epsabs
-                cubaflags as c_int,                     // flags
-                self.seed,                              // seed
-                self.mineval,                           // mineval
-                self.maxeval,                           // maxeval
-                self.nstart,                            // nstart
-                self.nincrease,                         // nincrease
-                self.batch,                             // batch
-                gridno,                                 // grid no
-                c_str.as_ptr(),                         // statefile
-                ptr::null_mut(),                        // spin
+                ndim as c_int,                                // ndim
+                ncomp as c_int,                               // ncomp
+                Some(CubaIntegrator::c_vegas_integrand::<T>), // integrand
+                user_data_ptr,                                // user data
+                nvec as c_longlong,                           // nvec
+                self.epsrel,                                  // epsrel
+                self.epsabs,                                  // epsabs
+                cubaflags as c_int,                           // flags
+                self.seed,                                    // seed
+                self.mineval,                                 // mineval
+                self.maxeval,                                 // maxeval
+                self.nstart,                                  // nstart
+                self.nincrease,                               // nincrease
+                self.batch,                                   // batch
+                gridno,                                       // grid no
+                c_str.as_ptr(),                               // statefile
+                ptr::null_mut(),                              // spin
                 &mut out.neval,
                 &mut out.fail,
                 &mut out.result[0],
@@ -457,7 +668,6 @@ impl<T> CubaIntegrator<T> {
 
         out
     }
-
     /// Integrate using the Suave integrator.
     ///
     /// * `ndim` - Dimension of the input
@@ -470,7 +680,7 @@ impl<T> CubaIntegrator<T> {
     ///                figure in the total fluctuation
     /// * `verbosity` - Verbosity level
     /// * `user_data` - User data used by the integrand function
-    pub fn suave(
+    pub fn suave<T>(
         &mut self,
         ndim: usize,
         ncomp: usize,
@@ -479,6 +689,7 @@ impl<T> CubaIntegrator<T> {
         nmin: usize,
         flatness: f64,
         verbosity: CubaVerbosity,
+        integrand: SuaveIntegrand<T>,
         user_data: T,
     ) -> CubaResult {
         let mut out = CubaResult {
@@ -495,8 +706,8 @@ impl<T> CubaIntegrator<T> {
         );
 
         // pass the safe integrand and the user data
-        let mut x = CubaUserData {
-            integrand: self.integrand,
+        let mut x = SuaveUserData {
+            integrand: integrand,
             user_data: user_data,
         };
 
@@ -522,17 +733,17 @@ impl<T> CubaIntegrator<T> {
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
             llSuave(
-                ndim as c_int,                          // ndim
-                ncomp as c_int,                         // ncomp
-                Some(CubaIntegrator::<T>::c_integrand), // integrand
-                user_data_ptr,                          // user data
-                nvec as c_longlong,                     // nvec
-                self.epsrel,                            // epsrel
-                self.epsabs,                            // epsabs
-                cubaflags as c_int,                     // flags
-                self.seed,                              // seed
-                self.mineval,                           // mineval
-                self.maxeval,                           // maxeval
+                ndim as c_int,                                // ndim
+                ncomp as c_int,                               // ncomp
+                Some(CubaIntegrator::c_suave_integrand::<T>), // integrand
+                user_data_ptr,                                // user data
+                nvec as c_longlong,                           // nvec
+                self.epsrel,                                  // epsrel
+                self.epsabs,                                  // epsabs
+                cubaflags as c_int,                           // flags
+                self.seed,                                    // seed
+                self.mineval,                                 // mineval
+                self.maxeval,                                 // maxeval
                 nnew as c_longlong,
                 nmin as c_longlong,
                 flatness,
@@ -558,13 +769,14 @@ impl<T> CubaIntegrator<T> {
     /// * `xgiven` - A list of input points which lie close to peaks
     /// * `verbosity` - Verbosity level
     /// * `user_data` - User data used by the integrand function
-    pub fn divonne(
+    pub fn divonne<T>(
         &mut self,
         ndim: usize,
         ncomp: usize,
         nvec: usize,
         xgiven: &[f64],
         verbosity: CubaVerbosity,
+        integrand: DivonneIntegrand<T>,
         user_data: T,
     ) -> CubaResult {
         let mut out = CubaResult {
@@ -581,8 +793,8 @@ impl<T> CubaIntegrator<T> {
         );
 
         // pass the safe integrand and the user data
-        let mut x = CubaUserData {
-            integrand: self.integrand,
+        let mut x = DivonneUserData {
+            integrand: integrand,
             user_data: user_data,
         };
 
@@ -608,17 +820,17 @@ impl<T> CubaIntegrator<T> {
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
             llDivonne(
-                ndim as c_int,                          // ndim
-                ncomp as c_int,                         // ncomp
-                Some(CubaIntegrator::<T>::c_integrand), // integrand
-                user_data_ptr,                          // user data
-                nvec as c_longlong,                     // nvec
-                self.epsrel,                            // epsrel
-                self.epsabs,                            // epsabs
-                cubaflags as c_int,                     // flags
-                self.seed,                              // seed
-                self.mineval,                           // mineval
-                self.maxeval,                           // maxeval
+                ndim as c_int,                                  // ndim
+                ncomp as c_int,                                 // ncomp
+                Some(CubaIntegrator::c_divonne_integrand::<T>), // integrand
+                user_data_ptr,                                  // user data
+                nvec as c_longlong,                             // nvec
+                self.epsrel,                                    // epsrel
+                self.epsabs,                                    // epsabs
+                cubaflags as c_int,                             // flags
+                self.seed,                                      // seed
+                self.mineval,                                   // mineval
+                self.maxeval,                                   // maxeval
                 self.key1,
                 self.key2,
                 self.key3,
@@ -656,12 +868,13 @@ impl<T> CubaIntegrator<T> {
     /// * `nvec` - Number of input points given to the integrand function
     /// * `verbosity` - Verbosity level
     /// * `user_data` - User data used by the integrand function
-    pub fn cuhre(
+    pub fn cuhre<T>(
         &mut self,
         ndim: usize,
         ncomp: usize,
         nvec: usize,
         verbosity: CubaVerbosity,
+        integrand: CuhreIntegrand<T>,
         user_data: T,
     ) -> CubaResult {
         let mut out = CubaResult {
@@ -675,8 +888,8 @@ impl<T> CubaIntegrator<T> {
         assert!(nvec <= 32, "nvec needs to be at most 32");
 
         // pass the safe integrand and the user data
-        let mut x = CubaUserData {
-            integrand: self.integrand,
+        let mut x = CuhreUserData {
+            integrand: integrand,
             user_data: user_data,
         };
 
@@ -697,19 +910,19 @@ impl<T> CubaIntegrator<T> {
         let c_str = CString::new(self.save_state_file.as_str()).expect("CString::new failed");
         unsafe {
             llCuhre(
-                ndim as c_int,                          // ndim
-                ncomp as c_int,                         // ncomp
-                Some(CubaIntegrator::<T>::c_integrand), // integrand
-                user_data_ptr,                          // user data
-                nvec as c_longlong,                     // nvec
-                self.epsrel,                            // epsrel
-                self.epsabs,                            // epsabs
-                cubaflags as c_int,                     // flags
-                self.mineval,                           // mineval
-                self.maxeval,                           // maxeval
-                self.key,                               // key
-                c_str.as_ptr(),                         // statefile
-                ptr::null_mut(),                        // spin
+                ndim as c_int,                                // ndim
+                ncomp as c_int,                               // ncomp
+                Some(CubaIntegrator::c_cuhre_integrand::<T>), // integrand
+                user_data_ptr,                                // user data
+                nvec as c_longlong,                           // nvec
+                self.epsrel,                                  // epsrel
+                self.epsabs,                                  // epsabs
+                cubaflags as c_int,                           // flags
+                self.mineval,                                 // mineval
+                self.maxeval,                                 // maxeval
+                self.key,                                     // key
+                c_str.as_ptr(),                               // statefile
+                ptr::null_mut(),                              // spin
                 &mut nregions,
                 &mut out.neval,
                 &mut out.fail,

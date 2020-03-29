@@ -14,6 +14,8 @@ fn integrand(
     user_data: &mut UserData,
     nvec: usize,
     _core: i32,
+    _weight: &[f64],
+    _iter: usize,
 ) -> Result<(), &'static str> {
     for i in 0..nvec {
         f[i * 2] = (x[i * 2] * x[i * 2]).sin() * user_data.f1;
@@ -24,7 +26,7 @@ fn integrand(
 }
 
 fn main() {
-    let mut ci = CubaIntegrator::new(integrand);
+    let mut ci = CubaIntegrator::new();
     ci.set_mineval(10)
         .set_maxeval(10000000)
         .set_epsrel(0.0001)
@@ -32,7 +34,7 @@ fn main() {
         .set_cores(2, 1000);
 
     let data = UserData { f1: 5., f2: 7. };
-    let r = ci.vegas(2, 2, 4, CubaVerbosity::Progress, 0, data);
+    let r = ci.vegas(2, 2, 4, CubaVerbosity::Progress, 0, integrand, data);
 
     println!("{:#?}", r);
 }
