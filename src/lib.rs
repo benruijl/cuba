@@ -462,7 +462,7 @@ impl CubaIntegrator {
                 &mut k.user_data,
                 *nvec as usize,
                 *core as i32,
-                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &slice::from_raw_parts(weight, *ndim as usize * *nvec as usize),
                 *iter as usize,
             ) {
                 Ok(_) => 0,
@@ -495,7 +495,7 @@ impl CubaIntegrator {
                 &mut k.user_data,
                 *nvec as usize,
                 *core as i32,
-                &slice::from_raw_parts(x, *ndim as usize * *nvec as usize),
+                &slice::from_raw_parts(weight, *ndim as usize * *nvec as usize),
                 *iter as usize,
             ) {
                 Ok(_) => 0,
