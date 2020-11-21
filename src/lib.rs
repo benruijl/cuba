@@ -73,7 +73,7 @@ macro_rules! gen_setter {
 
 #[link(name = "cuba")]
 extern "C" {
-    fn cubacores(n: c_int, p: c_int);
+    fn cubacores(n: *const c_int, p: *const c_int);
 
     fn llVegas(
         ndim: c_int,
@@ -415,7 +415,7 @@ impl CubaIntegrator {
         self.cores = cores;
         self.max_points_per_core = max_points_per_core;
         unsafe {
-            cubacores(cores as c_int, max_points_per_core as c_int);
+            cubacores(&(cores as c_int), &(max_points_per_core as c_int));
         }
         self
     }
