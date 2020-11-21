@@ -6,11 +6,22 @@
 //! Create a `CubaIntegrator` and supply it with a function of the form
 //!
 //! ```
-//! fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut T) -> i32 {
+//! type UserData = ();
+//!
+//! fn integrand(
+//!     x: &[f64],
+//!     f: &mut [f64],
+//!     user_data: &mut UserData,
+//!     nvec: usize,
+//!     core: i32,
+//!     weight: &[f64],
+//!     iter: usize,
+//! ) -> Result<(), &'static str> {
+//!     0
 //! }
 //! ```
-//! where `T` can be any type. If you don't want to provide user data,
-//! simply make `T` a `usize` and provide any number.
+//! where `UserData` can be any type. If you don't want to provide user data,
+//! simply make `UserData` a `usize` and provide any number.
 //!
 //! # Example
 //!
@@ -19,28 +30,40 @@
 //! use cuba::{CubaIntegrator, CubaVerbosity};
 //!
 //! #[derive(Debug)]
-//! struct TestUserData {
+//! struct UserData {
 //!     f1: f64,
 //!     f2: f64,
 //! }
 //!
 //! #[inline(always)]
-//! fn test_integrand(x: &[f64], f: &mut [f64], user_data: &mut TestUserData) -> i32 {
-//!     f[0] = (x[0] * x[1]).sin() * user_data.f1;
-//!     f[1] = (x[1] * x[1]).cos() * user_data.f2;
-//!     0
+//! fn integrand(
+//!     x: &[f64],
+//!     f: &mut [f64],
+//!     user_data: &mut UserData,
+//!     nvec: usize,
+//!     _core: i32,
+//!     _weight: &[f64],
+//!     _iter: usize,
+//! ) -> Result<(), &'static str> {
+//!     for i in 0..nvec {
+//!         f[i * 2] = (x[i * 2] * x[i * 2]).sin() * user_data.f1;
+//!         f[i * 2 + 1] = (x[i * 2 + 1] * x[i * 2 + 1]).cos() * user_data.f2;
+//!     }
+//!
+//!     Ok(())
 //! }
 //!
 //! fn main() {
-//!     let mut ci = CubaIntegrator::new(test_integrand);
-//!     ci.set_mineval(10).set_maxeval(10000);
+//!     let mut ci = CubaIntegrator::new();
+//!     ci.set_mineval(10)
+//!         .set_maxeval(10000000)
+//!         .set_epsrel(0.0001)
+//!         .set_seed(0) // use quasi-random numbers
+//!         .set_cores(2, 1000);
 //!
-//!     let r = ci.vegas(
-//!         2,
-//!         2,
-//!         CubaVerbosity::Progress,
-//!         TestUserData { f1: 5., f2: 7. },
-//!     );
+//!     let data = UserData { f1: 5., f2: 7. };
+//!     let r = ci.vegas(2, 2, 4, CubaVerbosity::Progress, 0, integrand, data);
+//!
 //!     println!("{:#?}", r);
 //! }
 //! ```
@@ -73,7 +96,7 @@ macro_rules! gen_setter {
 
 #[link(name = "cuba")]
 extern "C" {
-    fn cubacores(n: c_int, p: c_int);
+    fn cubacores(n: *const c_int, p: *const c_int);
 
     fn llVegas(
         ndim: c_int,
@@ -415,7 +438,7 @@ impl CubaIntegrator {
         self.cores = cores;
         self.max_points_per_core = max_points_per_core;
         unsafe {
-            cubacores(cores as c_int, max_points_per_core as c_int);
+            cubacores(&(cores as c_int), &(max_points_per_core as c_int));
         }
         self
     }
