@@ -6,6 +6,8 @@
 //! Create a `CubaIntegrator` and supply it with a function of the form
 //!
 //! ```
+//! type UserData = ();
+//!
 //! fn integrand(
 //!     x: &[f64],
 //!     f: &mut [f64],
@@ -14,7 +16,8 @@
 //!     core: i32,
 //!     weight: &[f64],
 //!     iter: usize,
-//! ) -> i32 {
+//! ) -> Result<(), &'static str> {
+//!  0
 //! }
 //! ```
 //! where `UserData` can be any type. If you don't want to provide user data,
@@ -25,13 +28,13 @@
 //! ```
 //! extern crate cuba;
 //! use cuba::{CubaIntegrator, CubaVerbosity};
-//! 
+//!
 //! #[derive(Debug)]
 //! struct UserData {
 //!     f1: f64,
 //!     f2: f64,
 //! }
-//! 
+//!
 //! #[inline(always)]
 //! fn integrand(
 //!     x: &[f64],
@@ -46,10 +49,10 @@
 //!         f[i * 2] = (x[i * 2] * x[i * 2]).sin() * user_data.f1;
 //!         f[i * 2 + 1] = (x[i * 2 + 1] * x[i * 2 + 1]).cos() * user_data.f2;
 //!     }
-//! 
+//!
 //!     Ok(())
 //! }
-//! 
+//!
 //! fn main() {
 //!     let mut ci = CubaIntegrator::new();
 //!     ci.set_mineval(10)
@@ -57,10 +60,10 @@
 //!         .set_epsrel(0.0001)
 //!         .set_seed(0) // use quasi-random numbers
 //!         .set_cores(2, 1000);
-//! 
+//!
 //!     let data = UserData { f1: 5., f2: 7. };
 //!     let r = ci.vegas(2, 2, 4, CubaVerbosity::Progress, 0, integrand, data);
-//! 
+//!
 //!     println!("{:#?}", r);
 //! }
 //! ```
