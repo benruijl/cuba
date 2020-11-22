@@ -17,7 +17,7 @@
 //!     weight: &[f64],
 //!     iter: usize,
 //! ) -> Result<(), &'static str> {
-//!  0
+//!     0
 //! }
 //! ```
 //! where `UserData` can be any type. If you don't want to provide user data,
