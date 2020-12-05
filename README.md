@@ -1,6 +1,6 @@
 # Rust Cuba interface
 
-This library provides safe access to the Cuba integration library.
+This library provides safe access to the Cuba integration library (version 4.2.1).
 
 ## Example
 
